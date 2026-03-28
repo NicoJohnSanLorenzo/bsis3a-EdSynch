@@ -677,12 +677,13 @@ class StudyHub {
                         data-question-id="${question.id}" data-field="question">${this.escapeHtml(question.question)}</textarea>
                     
                     ${question.type === 'mcq' ? `
+                        <div class="mcq-options-label"><i class="fas fa-circle-info"></i> Select the radio button to mark correct answer</div>
                         <div class="mcq-options-container">
                             ${question.options.map((option, optionIndex) => `
                                 <div class="mcq-option-input">
                                     <input type="radio" name="correct_${question.id}" value="${optionIndex}" 
                                         ${question.correct === optionIndex ? 'checked' : ''}
-                                        onchange="studyHub.updateQuestion('${question.id}', 'correct', ${optionIndex})">
+                                        onchange="studyHub.updateQuestion('${question.id}', 'correct', ${optionIndex})" title="Mark as correct answer">
                                     <input type="text" placeholder="Option ${optionIndex + 1}" value="${this.escapeHtml(option)}"
                                         data-question-id="${question.id}" data-option-index="${optionIndex}">
                                 </div>
