@@ -44,14 +44,6 @@
                         <span>Practice Quiz</span>
                     </button>
                 </nav>
-                <button class="theme-toggle" id="themeToggle" title="Toggle dark/light mode" aria-label="Toggle theme">
-                    <span class="toggle-track">
-                        <span class="toggle-thumb">
-                            <i class="fas fa-sun toggle-icon-light"></i>
-                            <i class="fas fa-moon toggle-icon-dark"></i>
-                        </span>
-                    </span>
-                </button>
                 <div class="header-stats">
                     <div class="stat-item">
                         <span class="stat-number" id="totalTasks">0</span>
@@ -66,6 +58,11 @@
                         <span class="stat-label">Pending</span>
                     </div>
                 </div>
+                <button class="burger-btn" id="burgerBtn" aria-label="Open menu">
+                    <span class="burger-line"></span>
+                    <span class="burger-line"></span>
+                    <span class="burger-line"></span>
+                </button>
             </div>
         </div>
     </header>
@@ -428,6 +425,98 @@
             </div>
         </div>
     </div>
+
+    <!-- Settings Side Panel -->
+    <div class="side-panel-overlay" id="sidePanelOverlay"></div>
+    <aside class="side-panel" id="sidePanel">
+        <div class="side-panel-header">
+            <h3><i class="fas fa-sliders-h"></i> Settings</h3>
+            <button class="side-panel-close" id="sidePanelClose" aria-label="Close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div class="side-panel-body">
+
+            <!-- Theme Section -->
+            <div class="sp-section">
+                <div class="sp-section-label">
+                    <i class="fas fa-palette"></i> Appearance
+                </div>
+                <div class="sp-setting-row">
+                    <div class="sp-setting-info">
+                        <span class="sp-setting-name">Dark Mode</span>
+                        <span class="sp-setting-desc">Switch between light and dark</span>
+                    </div>
+                    <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+                        <span class="toggle-track">
+                            <span class="toggle-thumb">
+                                <i class="fas fa-sun toggle-icon-light"></i>
+                                <i class="fas fa-moon toggle-icon-dark"></i>
+                            </span>
+                        </span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- App Settings Section -->
+            <div class="sp-section">
+                <div class="sp-section-label">
+                    <i class="fas fa-cog"></i> App Settings
+                </div>
+
+                <div class="sp-setting-row">
+                    <div class="sp-setting-info">
+                        <span class="sp-setting-name">Default Priority</span>
+                        <span class="sp-setting-desc">New task default priority</span>
+                    </div>
+                    <select class="sp-select" id="settingDefaultPriority">
+                        <option value="low">Low</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                    </select>
+                </div>
+
+                <div class="sp-setting-row">
+                    <div class="sp-setting-info">
+                        <span class="sp-setting-name">Show Completed</span>
+                        <span class="sp-setting-desc">Display completed tasks</span>
+                    </div>
+                    <label class="sp-switch">
+                        <input type="checkbox" id="settingShowCompleted" checked>
+                        <span class="sp-switch-track"><span class="sp-switch-thumb"></span></span>
+                    </label>
+                </div>
+
+                <div class="sp-setting-row">
+                    <div class="sp-setting-info">
+                        <span class="sp-setting-name">Overdue Alerts</span>
+                        <span class="sp-setting-desc">Highlight overdue tasks</span>
+                    </div>
+                    <label class="sp-switch">
+                        <input type="checkbox" id="settingOverdueAlerts" checked>
+                        <span class="sp-switch-track"><span class="sp-switch-thumb"></span></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- About Section -->
+            <div class="sp-section">
+                <div class="sp-section-label">
+                    <i class="fas fa-info-circle"></i> About
+                </div>
+                <div class="sp-about">
+                    <div class="sp-about-logo">
+                        <i class="fas fa-graduation-cap"></i>
+                        <span>EduSync</span>
+                    </div>
+                    <p class="sp-about-desc">Academic task manager & quiz tool for students.</p>
+                    <span class="sp-version">Version 1.0.0</span>
+                </div>
+            </div>
+
+        </div>
+    </aside>
 
     <script type="module" src="script.js"></script>
 </body>

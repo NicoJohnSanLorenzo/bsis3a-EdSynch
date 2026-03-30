@@ -41,6 +41,12 @@ class StudyHub {
             }
         };
         
+        this.settings = {
+            showCompleted: true,
+            defaultPriority: 'medium',
+            overdueAlerts: true
+        };
+
         this.init();
     }
 
@@ -53,6 +59,7 @@ class StudyHub {
         this.updateStats();
         this.updateQuizStats();
         this.initTheme();
+        this.loadSettings();
     }
 
     bindEvents() {
@@ -135,6 +142,32 @@ class StudyHub {
         // Close quiz creation modal on outside click
         document.getElementById('quizCreationModal').addEventListener('click', (e) => {
             if (e.target.id === 'quizCreationModal') this.closeQuizCreationModal();
+        });
+
+        // Burger / side panel
+        document.getElementById('burgerBtn').addEventListener('click', () => this.openSidePanel());
+        document.getElementById('sidePanelClose').addEventListener('click', () => this.closeSidePanel());
+        document.getElementById('sidePanelOverlay').addEventListener('click', () => this.closeSidePanel());
+
+        // Close side panel on Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') this.closeSidePanel();
+        });
+
+        // Settings controls
+        document.getElementById('settingShowCompleted').addEventListener('change', (e) => {
+            this.settings.showCompleted = e.target.checked;
+            this.saveSettings();
+            this.render();
+        });
+        document.getElementById('settingDefaultPriority').addEventListener('change', (e) => {
+            this.settings.defaultPriority = e.target.value;
+            this.saveSettings();
+        });
+        document.getElementById('settingOverdueAlerts').addEventListener('change', (e) => {
+            this.settings.overdueAlerts = e.target.checked;
+            this.saveSettings();
+            this.render();
         });
     }
 
@@ -315,6 +348,7 @@ class StudyHub {
 
     getFilteredTasks() {
         return this.tasks.filter(task => {
+            if (!this.settings.showCompleted && task.status === 'completed') return false;
             if (this.currentFilter.priority && task.priority !== this.currentFilter.priority) {
                 return false;
             }
@@ -980,6 +1014,35 @@ class StudyHub {
         const minutes = Math.floor(seconds / 60);
         const remainingSeconds = seconds % 60;
         return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    }
+
+    loadSettings() {
+        const saved = localStorage.getItem('edusync_settings');
+        if (saved) {
+            this.settings = { ...this.settings, ...JSON.parse(saved) };
+        }
+        // Apply to UI
+        document.getElementById('settingShowCompleted').checked = this.settings.showCompleted;
+        document.getElementById('settingDefaultPriority').value = this.settings.defaultPriority;
+        document.getElementById('settingOverdueAlerts').checked = this.settings.overdueAlerts;
+    }
+
+    saveSettings() {
+        localStorage.setItem('edusync_settings', JSON.stringify(this.settings));
+    }
+
+    openSidePanel() {
+        document.getElementById('sidePanel').classList.add('open');
+        document.getElementById('sidePanelOverlay').classList.add('open');
+        document.getElementById('burgerBtn').classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    closeSidePanel() {
+        document.getElementById('sidePanel').classList.remove('open');
+        document.getElementById('sidePanelOverlay').classList.remove('open');
+        document.getElementById('burgerBtn').classList.remove('active');
+        document.body.style.overflow = '';
     }
 
     initTheme() {
