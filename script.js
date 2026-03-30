@@ -1,3 +1,4 @@
+import { collection, getDocs, setDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js";
 class StudyHub {
     constructor() {
         this.tasks = [];
@@ -43,14 +44,15 @@ class StudyHub {
         this.init();
     }
 
-    init() {
-        this.loadTasks();
+    async init() {
+        await this.loadTasks();
         this.loadQuizData();
         this.loadUserQuizzes();
         this.bindEvents();
         this.render();
         this.updateStats();
         this.updateQuizStats();
+        this.initTheme();
     }
 
     bindEvents() {
@@ -140,12 +142,10 @@ class StudyHub {
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
     }
 
-    loadTasks() {
-        const stored = localStorage.getItem('studyhub_tasks');
-        if (stored) {
-            this.tasks = JSON.parse(stored);
-        } else {
-            // Add sample tasks for demonstration
+    async loadTasks() {
+        const snapshot = await getDocs(collection(window.db, "tasks"));
+        this.tasks = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (this.tasks.length === 0) {
             this.tasks = [
                 {
                     id: this.generateId(),
@@ -178,12 +178,15 @@ class StudyHub {
                     createdAt: new Date().toISOString()
                 }
             ];
-            this.saveTasks();
+            await this.saveTasks();
         }
     }
 
-    saveTasks() {
-        localStorage.setItem('studyhub_tasks', JSON.stringify(this.tasks));
+    async saveTasks() {
+        for (const task of this.tasks) {
+            const { id, ...taskData } = task;
+            await setDoc(doc(window.db, "tasks", id), taskData);
+        }
     }
 
     getDateString(daysFromNow = 0) {
@@ -225,7 +228,7 @@ class StudyHub {
         this.editingTaskId = null;
     }
 
-    handleTaskSubmit(e) {
+    async handleTaskSubmit(e) {
         e.preventDefault();
         
         const taskData = {
@@ -276,17 +279,17 @@ class StudyHub {
         this.deletingTaskId = null;
     }
 
-    confirmDelete() {
+    async confirmDelete() {
         if (this.deletingTaskId) {
+            await deleteDoc(doc(window.db, "tasks", this.deletingTaskId));
             this.tasks = this.tasks.filter(t => t.id !== this.deletingTaskId);
-            this.saveTasks();
             this.render();
             this.updateStats();
             this.closeDeleteModal();
         }
     }
 
-    toggleTaskStatus(taskId) {
+    async toggleTaskStatus(taskId) {
         const task = this.tasks.find(t => t.id === taskId);
         if (task) {
             const statusFlow = {
@@ -523,6 +526,8 @@ class StudyHub {
 
         // Update sidebar visibility
         document.querySelector('.sidebar').style.display = module === 'tasks' ? '' : 'none';
+        // Toggle full-width layout for quiz module
+        document.querySelector('.app-layout').classList.toggle('full-width', module !== 'tasks');
     }
 
     updateQuizStats() {
@@ -536,21 +541,7 @@ class StudyHub {
     }
 
     renderAchievements() {
-        const achievementsList = document.getElementById('achievementsList');
-        const achievements = [
-            { id: 'first_quiz', name: 'First Quiz', icon: 'fa-play', unlocked: this.quizStats.totalQuizzes >= 1 },
-            { id: 'quiz_master', name: 'Quiz Master', icon: 'fa-trophy', unlocked: this.quizStats.totalQuizzes >= 10 },
-            { id: 'perfect_score', name: 'Perfect Score', icon: 'fa-star', unlocked: false },
-            { id: 'streak_warrior', name: 'Streak Warrior', icon: 'fa-fire', unlocked: this.quizStats.streak >= 5 },
-            { id: 'point_collector', name: 'Point Collector', icon: 'fa-coins', unlocked: this.quizStats.totalPoints >= 100 }
-        ];
-
-        achievementsList.innerHTML = achievements.map(achievement => `
-            <div class="achievement ${achievement.unlocked ? 'unlocked' : ''}">
-                <i class="fas ${achievement.icon}"></i>
-                <span>${achievement.name}</span>
-            </div>
-        `).join('');
+        // achievementsList element doesn't exist in HTML — achievements rendering skipped
     }
 
     loadUserQuizzes() {
@@ -804,7 +795,7 @@ class StudyHub {
         const quiz = this.userQuizzes.find(q => q.id === quizId);
         if (!quiz) return;
 
-        // Randomize questions
+        this.currentQuizId = quizId; // Save for retake
         const shuffledQuestions = [...quiz.questions].sort(() => Math.random() - 0.5);
         
         this.quizData = {
@@ -991,6 +982,19 @@ class StudyHub {
         return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
     }
 
+    initTheme() {
+        const saved = localStorage.getItem('edusync_theme') || 'light';
+        document.documentElement.setAttribute('data-theme', saved);
+        document.getElementById('themeToggle').addEventListener('click', () => this.toggleTheme());
+    }
+
+    toggleTheme() {
+        const current = document.documentElement.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('edusync_theme', next);
+    }
+
     retakeQuiz() {
         this.startUserQuiz(this.currentQuizId);
     }
@@ -1002,5 +1006,15 @@ class StudyHub {
     }
 }
 
-// Initialize the application
-const studyHub = new StudyHub();
+// Initialize only after Firebase is ready
+var studyHub;
+function initApp() {
+    studyHub = new StudyHub();
+    window.studyHub = studyHub;
+}
+
+if (window.db) {
+    initApp();
+} else {
+    window.addEventListener('firebase-ready', initApp, { once: true });
+}

@@ -7,6 +7,24 @@
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCY1Xk0V-sFxdbrXstp11MUvqP3S1SbTVo",
+            authDomain: "edsynch-is.firebaseapp.com",
+            projectId: "edsynch-is",
+            storageBucket: "edsynch-is.firebasestorage.app",
+            messagingSenderId: "327061799130",
+            appId: "1:327061799130:web:a437b9123990f7cc66a5e3"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        window.db = getFirestore(app);
+        window.dispatchEvent(new Event('firebase-ready'));
+    </script>
 </head>
 <body>
     <header class="header">
@@ -26,6 +44,14 @@
                         <span>Practice Quiz</span>
                     </button>
                 </nav>
+                <button class="theme-toggle" id="themeToggle" title="Toggle dark/light mode" aria-label="Toggle theme">
+                    <span class="toggle-track">
+                        <span class="toggle-thumb">
+                            <i class="fas fa-sun toggle-icon-light"></i>
+                            <i class="fas fa-moon toggle-icon-dark"></i>
+                        </span>
+                    </span>
+                </button>
                 <div class="header-stats">
                     <div class="stat-item">
                         <span class="stat-number" id="totalTasks">0</span>
@@ -403,6 +429,6 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script type="module" src="script.js"></script>
 </body>
 </html>
