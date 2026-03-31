@@ -1574,40 +1574,62 @@ body {
     .quiz-setup {
         grid-template-columns: 1fr;
     }
-    
+
     .quiz-header {
         flex-direction: column;
         text-align: center;
+        padding: 1.5rem 1rem;
     }
-    
+
+    .quiz-header h2 {
+        font-size: 1.75rem;
+        margin-bottom: 1rem;
+    }
+
     .quiz-stats {
         width: 100%;
         justify-content: space-around;
+        gap: 0.5rem;
     }
-    
+
+    .quiz-stat {
+        min-width: 70px;
+        padding: 0.5rem 0.75rem;
+    }
+
+    .quiz-stat span:first-of-type {
+        font-size: 1.2rem;
+    }
+
+    .quiz-stat span:last-of-type {
+        font-size: 0.6rem;
+    }
+
     .quiz-card {
         padding: 1.5rem;
+        margin: 0 0.5rem;
     }
-    
+
     .quiz-timer {
         position: static;
         transform: none;
         margin-top: 1rem;
         justify-content: center;
     }
-    
+
     .results-actions {
         flex-direction: column;
+        gap: 0.75rem;
     }
-    
+
     .summary-stats {
         grid-template-columns: 1fr;
     }
-    
+
     .question-actions {
         flex-direction: column;
     }
-    
+
     .quiz-item {
         flex-direction: column;
         align-items: flex-start;
@@ -1621,10 +1643,80 @@ body {
     #quizCreationModal .modal-content {
         max-width: 98vw;
     }
-    
+
     .quiz-actions {
+        flex-direction: column;
+        gap: 0.75rem;
+        align-items: stretch;
+    }
+
+    .quiz-actions button {
         width: 100%;
-        justify-content: flex-end;
+    }
+}
+
+@media (max-width: 480px) {
+    .quiz-header {
+        padding: 1rem 0.5rem;
+    }
+
+    .quiz-header h2 {
+        font-size: 1.5rem;
+    }
+
+    .quiz-stats {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .quiz-stat {
+        min-width: 60px;
+        padding: 0.4rem 0.5rem;
+    }
+
+    .quiz-stat span:first-of-type {
+        font-size: 1.1rem;
+    }
+
+    .quiz-stat span:last-of-type {
+        font-size: 0.55rem;
+    }
+
+    .quiz-card {
+        padding: 1rem;
+        margin: 0 0.25rem;
+    }
+
+    .question-content h3 {
+        font-size: 1.1rem;
+    }
+
+    .mcq-option {
+        padding: 0.75rem;
+        font-size: 0.9rem;
+    }
+
+    .identification-input input {
+        padding: 0.75rem;
+        font-size: 0.9rem;
+    }
+
+    .results-card {
+        padding: 1.5rem;
+    }
+
+    .score-circle {
+        width: 100px;
+        height: 100px;
+    }
+
+    .score-circle span {
+        font-size: 1.5rem;
+    }
+
+    .summary-item {
+        padding: 0.5rem;
+        font-size: 0.85rem;
     }
 }
 
