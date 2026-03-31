@@ -72,7 +72,7 @@ class StudyHub {
             rain:   'https://cdn.jsdelivr.net/gh/NicoJohnSanLorenzo/bsis3a-EdSynch@main/assets/mixkit-light-rain-loop-1253.wav',
             cricket:   'https://cdn.jsdelivr.net/gh/NicoJohnSanLorenzo/bsis3a-EdSynch@main/assets/mixkit-night-crickets-near-the-swamp-1782.wav',
             forest: 'https://cdn.jsdelivr.net/gh/NicoJohnSanLorenzo/bsis3a-EdSynch@main/assets/mixkit-natural-ambience-with-flowing-water-and-birds-61.wav',
-            bird:  'https://cdn.jsdelivr.net/gh/NicoJohnSanLorenzo/bsis3a-EdSynch@main/assets/mixkit-forest-birds-ambience-1210.wav'
+            bird:  'https://cdn.jsdelivr.net/gh/NicoJohnSanLorenzo/bsis3a-EdSynch@main/assets/mixkit-little-birds-singing-in-the-trees-17.wav'
         };
 
         // Collaboration
