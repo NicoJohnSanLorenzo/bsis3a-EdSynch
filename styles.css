@@ -962,6 +962,19 @@ body {
     margin: 0 auto;
 }
 
+@media (max-width: 768px) {
+    .quiz-active {
+        max-width: 100%;
+        padding: 0 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .quiz-active {
+        padding: 0 0.5rem;
+    }
+}
+
 .quiz-progress {
     margin-bottom: 2rem;
 }
@@ -1107,6 +1120,19 @@ body {
 .quiz-results {
     max-width: 800px;
     margin: 0 auto;
+}
+
+@media (max-width: 768px) {
+    .quiz-results {
+        max-width: 100%;
+        padding: 0 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .quiz-results {
+        padding: 0 0.5rem;
+    }
 }
 
 .results-card {
