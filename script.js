@@ -47,6 +47,49 @@ class StudyHub {
             overdueAlerts: true
         };
 
+        // Writing Tool
+        this.documents = [];
+        this.currentDocId = null;
+        this.outlineSections = [];
+        this.citations = [];
+
+        // Focus Mode
+        this.focusTimer = null;
+        this.focusRunning = false;
+        this.focusWorkMinutes = 25;
+        this.focusBreakMinutes = 5;
+        this.focusPhase = 'work'; // 'work' | 'break'
+        this.focusSecondsLeft = 25 * 60;
+        this.focusSessionsCompleted = 0;
+        this.focusTotalMinutes = 0;
+        this.blockedSites = [];
+
+        // Ambient audio
+        this.ambientAudio = null;
+        this.ambientVolume = 0.5;
+        // ── Replace these URLs with your Firebase Storage download URLs ──
+        this.ambientUrls = {
+            rain:   'https://cdn.jsdelivr.net/gh/NicoJohnSanLorenzo/bsis3a-EdSynch@main/assets/mixkit-light-rain-loop-1253.wav',
+            cricket:   'https://cdn.jsdelivr.net/gh/NicoJohnSanLorenzo/bsis3a-EdSynch@main/assets/mixkit-night-crickets-near-the-swamp-1782.wav',
+            forest: 'https://cdn.jsdelivr.net/gh/NicoJohnSanLorenzo/bsis3a-EdSynch@main/assets/mixkit-natural-ambience-with-flowing-water-and-birds-61.wav',
+            bird:  'https://cdn.jsdelivr.net/gh/NicoJohnSanLorenzo/bsis3a-EdSynch@main/assets/mixkit-forest-birds-ambience-1210.wav'
+        };
+
+        // Collaboration
+        this.groups = [];
+        this.activeGroupId = null;
+
+        // Marketplace
+        this.marketItems = [];
+
+        // Forum
+        this.forumPosts = [];
+        this.forumActiveCategory = 'all';
+
+        // Gamification
+        this.xp = 0;
+        this.badges = [];
+
         this.init();
     }
 
@@ -54,12 +97,14 @@ class StudyHub {
         await this.loadTasks();
         this.loadQuizData();
         this.loadUserQuizzes();
+        await this.loadNewModuleData();
         this.bindEvents();
         this.render();
         this.updateStats();
         this.updateQuizStats();
         this.initTheme();
         this.loadSettings();
+        this.updateXPDisplay();
     }
 
     bindEvents() {
@@ -175,6 +220,82 @@ class StudyHub {
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
     }
 
+    // ── Custom modal replacements for prompt() and confirm() ──
+    customPrompt({ title = 'Enter value', label = '', placeholder = '', defaultValue = '' } = {}) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('customPromptModal');
+            document.getElementById('customPromptTitle').textContent = title;
+            document.getElementById('customPromptLabel').textContent = label;
+            const input = document.getElementById('customPromptInput');
+            input.placeholder = placeholder;
+            input.value = defaultValue;
+            modal.classList.add('active');
+            setTimeout(() => input.focus(), 50);
+
+            const cleanup = (result) => {
+                modal.classList.remove('active');
+                okBtn.removeEventListener('click', onOk);
+                cancelBtn.removeEventListener('click', onCancel);
+                closeBtn.removeEventListener('click', onCancel);
+                modal.removeEventListener('click', onOutside);
+                document.removeEventListener('keydown', onKey);
+                resolve(result);
+            };
+
+            const onOk = () => cleanup(input.value.trim() || null);
+            const onCancel = () => cleanup(null);
+            const onOutside = (e) => { if (e.target === modal) onCancel(); };
+            const onKey = (e) => {
+                if (e.key === 'Enter') onOk();
+                if (e.key === 'Escape') onCancel();
+            };
+
+            const okBtn = document.getElementById('customPromptOkBtn');
+            const cancelBtn = document.getElementById('customPromptCancelBtn');
+            const closeBtn = document.getElementById('closeCustomPromptModal');
+            okBtn.addEventListener('click', onOk);
+            cancelBtn.addEventListener('click', onCancel);
+            closeBtn.addEventListener('click', onCancel);
+            modal.addEventListener('click', onOutside);
+            document.addEventListener('keydown', onKey);
+        });
+    }
+
+    customConfirm({ title = 'Confirm', message = 'Are you sure?', okLabel = 'Confirm', okClass = 'btn-primary' } = {}) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('customConfirmModal');
+            document.getElementById('customConfirmTitle').textContent = title;
+            document.getElementById('customConfirmMessage').textContent = message;
+            const okBtn = document.getElementById('customConfirmOkBtn');
+            okBtn.textContent = okLabel;
+            okBtn.className = `btn ${okClass}`;
+            modal.classList.add('active');
+
+            const cleanup = (result) => {
+                modal.classList.remove('active');
+                okBtn.removeEventListener('click', onOk);
+                cancelBtn.removeEventListener('click', onCancel);
+                closeBtn.removeEventListener('click', onCancel);
+                modal.removeEventListener('click', onOutside);
+                document.removeEventListener('keydown', onKey);
+                resolve(result);
+            };
+
+            const onOk = () => cleanup(true);
+            const onCancel = () => cleanup(false);
+            const onOutside = (e) => { if (e.target === modal) onCancel(); };
+            const onKey = (e) => { if (e.key === 'Escape') onCancel(); };
+
+            const cancelBtn = document.getElementById('customConfirmCancelBtn');
+            const closeBtn = document.getElementById('closeCustomConfirmModal');
+            okBtn.addEventListener('click', onOk);
+            cancelBtn.addEventListener('click', onCancel);
+            closeBtn.addEventListener('click', onCancel);
+            modal.addEventListener('click', onOutside);
+            document.addEventListener('keydown', onKey);
+        });
+    }
+
     async loadTasks() {
         const snapshot = await getDocs(collection(window.db, "tasks"));
         this.tasks = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -220,6 +341,11 @@ class StudyHub {
             const { id, ...taskData } = task;
             await setDoc(doc(window.db, "tasks", id), taskData);
         }
+    }
+
+    async saveTask(task) {
+        const { id, ...taskData } = task;
+        await setDoc(doc(window.db, "tasks", id), taskData);
     }
 
     getDateString(daysFromNow = 0) {
@@ -286,6 +412,7 @@ class StudyHub {
                     ...taskData,
                     updatedAt: new Date().toISOString()
                 };
+                await this.saveTask(this.tasks[taskIndex]);
             }
         } else {
             const newTask = {
@@ -294,9 +421,8 @@ class StudyHub {
                 createdAt: new Date().toISOString()
             };
             this.tasks.push(newTask);
+            await this.saveTask(newTask);
         }
-
-        this.saveTasks();
         this.render();
         this.updateStats();
         this.closeTaskModal();
@@ -332,7 +458,7 @@ class StudyHub {
             };
             task.status = statusFlow[task.status] || 'pending';
             task.updatedAt = new Date().toISOString();
-            this.saveTasks();
+            await this.saveTask(task);
             this.render();
             this.updateStats();
         }
@@ -554,14 +680,24 @@ class StudyHub {
             tab.classList.toggle('active', tab.dataset.module === module);
         });
 
-        // Show/hide modules
-        document.getElementById('tasksModule').style.display = module === 'tasks' ? '' : 'none';
-        document.getElementById('quizModule').style.display = module === 'quiz' ? '' : 'none';
+        const allModules = ['tasks','quiz','writing','focus','collab','marketplace','forum'];
+        allModules.forEach(m => {
+            const el = document.getElementById(m === 'tasks' ? 'tasksModule' : m === 'quiz' ? 'quizModule' : m + 'Module');
+            if (el) el.style.display = (m === module) ? '' : 'none';
+        });
 
-        // Update sidebar visibility
-        document.querySelector('.sidebar').style.display = module === 'tasks' ? '' : 'none';
-        // Toggle full-width layout for quiz module
-        document.querySelector('.app-layout').classList.toggle('full-width', module !== 'tasks');
+        // Sidebar only shows for tasks
+        const sidebar = document.getElementById('mainSidebar');
+        if (sidebar) sidebar.style.display = module === 'tasks' ? '' : 'none';
+        const layout = document.getElementById('appLayout');
+        if (layout) layout.classList.toggle('full-width', module !== 'tasks');
+
+        // Module-specific init
+        if (module === 'writing') this.renderDocsList();
+        if (module === 'collab') this.renderGroupsList();
+        if (module === 'marketplace') this.renderMarket();
+        if (module === 'forum') this.renderForum();
+        if (module === 'focus') this.renderBlockerList();
     }
 
     updateQuizStats() {
@@ -768,7 +904,7 @@ class StudyHub {
         }
     }
 
-    saveQuiz() {
+    async saveQuiz() {
         if (this.currentQuizCreation.questions.length === 0) {
             alert('Please add at least one question');
             return;
@@ -794,7 +930,7 @@ class StudyHub {
             }
         }
 
-        const title = prompt('Enter a title for your quiz:');
+        const title = await this.customPrompt({ title: 'Name Your Quiz', label: 'Quiz title', placeholder: 'e.g. Chapter 5 Review' });
         if (!title || !title.trim()) {
             return;
         }
@@ -815,10 +951,9 @@ class StudyHub {
         alert('Quiz created successfully!');
     }
 
-    deleteQuiz(quizId) {
-        if (!confirm('Are you sure you want to delete this quiz?')) {
-            return;
-        }
+    async deleteQuiz(quizId) {
+        const ok = await this.customConfirm({ title: 'Delete Quiz', message: 'Are you sure you want to delete this quiz?', okLabel: 'Delete', okClass: 'btn-danger' });
+        if (!ok) return;
 
         this.userQuizzes = this.userQuizzes.filter(q => q.id !== quizId);
         this.saveUserQuizzes();
@@ -1066,6 +1201,989 @@ class StudyHub {
         document.getElementById('quizSetup').style.display = '';
         document.getElementById('quizActive').style.display = 'none';
         document.getElementById('quizResults').style.display = 'none';
+    }
+
+    // ══════════════════════════════════════════════════════
+    //  NEW MODULE BINDINGS
+    // ══════════════════════════════════════════════════════
+    bindNewModuleEvents() {
+        // Upgrade
+        document.getElementById('upgradeBtn')?.addEventListener('click', () => {
+            document.getElementById('upgradeModal').classList.add('active');
+        });
+        document.getElementById('closeUpgradeModal')?.addEventListener('click', () => {
+            document.getElementById('upgradeModal').classList.remove('active');
+        });
+        document.getElementById('upgradeModal')?.addEventListener('click', e => {
+            if (e.target.id === 'upgradeModal') document.getElementById('upgradeModal').classList.remove('active');
+        });
+        document.getElementById('goPremiumBtn')?.addEventListener('click', () => {
+            document.getElementById('tierBadge').textContent = 'Premium';
+            document.getElementById('tierBadge').classList.add('premium');
+            document.getElementById('upgradeModal').classList.remove('active');
+            this.showToast('🎉 Welcome to EduSync Premium!', 'success');
+        });
+
+        // Writing Tool
+        document.getElementById('newDocBtn')?.addEventListener('click', () => this.newDocument());
+        document.getElementById('saveDocBtn')?.addEventListener('click', () => this.saveDocument());
+        document.getElementById('addSectionBtn')?.addEventListener('click', () => this.addOutlineSection());
+        document.getElementById('addCitationBtn')?.addEventListener('click', () => {
+            document.getElementById('addCitationModal').classList.add('active');
+        });
+        document.getElementById('closeAddCitationModal')?.addEventListener('click', () => {
+            document.getElementById('addCitationModal').classList.remove('active');
+        });
+        document.getElementById('cancelCitationBtn')?.addEventListener('click', () => {
+            document.getElementById('addCitationModal').classList.remove('active');
+        });
+        document.getElementById('saveCitationBtn')?.addEventListener('click', () => this.saveCitation());
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.execCommand(btn.dataset.cmd, false, null);
+                document.getElementById('writingArea')?.focus();
+            });
+        });
+        document.getElementById('writingArea')?.addEventListener('input', () => this.updateWordCount());
+
+        // Focus Mode
+        document.getElementById('startFocusBtn')?.addEventListener('click', () => this.startFocusTimer());
+        document.getElementById('pauseFocusBtn')?.addEventListener('click', () => this.pauseFocusTimer());
+        document.getElementById('resetFocusBtn')?.addEventListener('click', () => this.resetFocusTimer());
+        document.getElementById('enterFullFocusBtn')?.addEventListener('click', () => {
+            document.getElementById('focusActiveOverlay').style.display = '';
+        });
+        document.getElementById('exitFocusOverlayBtn')?.addEventListener('click', () => {
+            document.getElementById('focusActiveOverlay').style.display = 'none';
+        });
+        document.getElementById('addBlockerBtn')?.addEventListener('click', () => this.addBlockerSite());
+        document.getElementById('blockerSiteInput')?.addEventListener('keydown', e => {
+            if (e.key === 'Enter') this.addBlockerSite();
+        });
+        document.getElementById('focusShieldToggle')?.addEventListener('change', e => {
+            const note = document.getElementById('focusShieldNote');
+            note.textContent = e.target.checked
+                ? '🛡️ Focus Shield ON — stay focused!'
+                : '';
+        });
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                this.focusWorkMinutes = parseInt(btn.dataset.work);
+                this.focusBreakMinutes = parseInt(btn.dataset.break);
+                this.resetFocusTimer();
+            });
+        });
+        document.querySelectorAll('.ambient-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const sound = btn.dataset.sound;
+                const isActive = btn.classList.contains('active');
+
+                // Stop any playing audio
+                this.stopAmbientAudio();
+                document.querySelectorAll('.ambient-btn').forEach(b => b.classList.remove('active'));
+
+                if (!isActive) {
+                    btn.classList.add('active');
+                    this.playAmbientAudio(sound);
+                }
+            });
+        });
+
+        // Volume slider
+        document.getElementById('ambientVolume')?.addEventListener('input', (e) => {
+            this.ambientVolume = parseFloat(e.target.value);
+            if (this.ambientAudio) this.ambientAudio.volume = this.ambientVolume;
+            const pct = Math.round(this.ambientVolume * 100);
+            const label = document.getElementById('ambientVolumeLabel');
+            if (label) label.textContent = pct + '%';
+        });
+
+        // Collaboration
+        document.getElementById('createGroupBtn')?.addEventListener('click', () => {
+            document.getElementById('createGroupModal').classList.add('active');
+        });
+        document.getElementById('closeCreateGroupModal')?.addEventListener('click', () => {
+            document.getElementById('createGroupModal').classList.remove('active');
+        });
+        document.getElementById('cancelCreateGroupBtn')?.addEventListener('click', () => {
+            document.getElementById('createGroupModal').classList.remove('active');
+        });
+        document.getElementById('saveGroupBtn')?.addEventListener('click', () => this.createGroup());
+        document.getElementById('addGroupTaskBtn')?.addEventListener('click', () => this.addGroupTask());
+        document.getElementById('addGroupNoteBtn')?.addEventListener('click', () => this.addGroupNote());
+        document.getElementById('sendChatBtn')?.addEventListener('click', () => this.sendChatMessage());
+        document.getElementById('chatInput')?.addEventListener('keydown', e => {
+            if (e.key === 'Enter') this.sendChatMessage();
+        });
+        document.getElementById('leaveGroupBtn')?.addEventListener('click', () => this.leaveGroup());
+        document.getElementById('inviteMemberBtn')?.addEventListener('click', () => {
+            this.showToast('📧 Invite link copied to clipboard!', 'success');
+        });
+
+        // Marketplace
+        document.getElementById('sellItemBtn')?.addEventListener('click', () => {
+            document.getElementById('sellItemModal').classList.add('active');
+        });
+        document.getElementById('closeSellItemModal')?.addEventListener('click', () => {
+            document.getElementById('sellItemModal').classList.remove('active');
+        });
+        document.getElementById('cancelSellBtn')?.addEventListener('click', () => {
+            document.getElementById('sellItemModal').classList.remove('active');
+        });
+        document.getElementById('saveSellBtn')?.addEventListener('click', () => this.listMarketItem());
+        document.getElementById('marketSearch')?.addEventListener('input', () => this.renderMarket());
+        document.getElementById('marketCategoryFilter')?.addEventListener('change', () => this.renderMarket());
+        document.getElementById('marketSortFilter')?.addEventListener('change', () => this.renderMarket());
+
+        // Forum
+        document.getElementById('newPostBtn')?.addEventListener('click', () => {
+            document.getElementById('newPostModal').classList.add('active');
+        });
+        document.getElementById('closeNewPostModal')?.addEventListener('click', () => {
+            document.getElementById('newPostModal').classList.remove('active');
+        });
+        document.getElementById('cancelPostBtn')?.addEventListener('click', () => {
+            document.getElementById('newPostModal').classList.remove('active');
+        });
+        document.getElementById('savePostBtn')?.addEventListener('click', () => this.publishPost());
+        document.getElementById('forumSearch')?.addEventListener('input', () => this.renderForum());
+        document.querySelectorAll('.forum-category').forEach(cat => {
+            cat.addEventListener('click', () => {
+                document.querySelectorAll('.forum-category').forEach(c => c.classList.remove('active'));
+                cat.classList.add('active');
+                this.forumActiveCategory = cat.dataset.cat;
+                this.renderForum();
+            });
+        });
+    }
+
+    // ── LOAD / SAVE NEW DATA ──
+    async loadNewModuleData() {
+        const d = localStorage.getItem('edusync_documents');
+        if (d) this.documents = JSON.parse(d);
+
+        const g = localStorage.getItem('edusync_groups');
+        if (g) this.groups = JSON.parse(g);
+
+        // Load market items from Firestore
+        await this.loadMarketItems();
+
+        const f = localStorage.getItem('edusync_forum');
+        if (f) this.forumPosts = JSON.parse(f);
+        else this.seedForumPosts();
+
+        const xp = localStorage.getItem('edusync_xp');
+        if (xp) this.xp = parseInt(xp);
+
+        const bl = localStorage.getItem('edusync_blocker');
+        if (bl) this.blockedSites = JSON.parse(bl);
+
+        const fs = localStorage.getItem('edusync_focus_sessions');
+        if (fs) this.focusSessionsCompleted = parseInt(fs);
+
+        // Wire up new events after DOM is ready
+        this.bindNewModuleEvents();
+    }
+
+    async loadMarketItems() {
+        try {
+            const snapshot = await getDocs(collection(window.db, 'marketItems'));
+            this.marketItems = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            if (this.marketItems.length === 0) {
+                await this.seedMarketItems();
+            }
+        } catch (e) {
+            console.error('Failed to load market items from Firestore', e);
+            this.marketItems = [];
+        }
+    }
+
+    async saveMarketItem(item) {
+        const { id, ...data } = item;
+        await setDoc(doc(window.db, 'marketItems', id), data);
+    }
+
+    saveModuleData(key, data) {
+        localStorage.setItem(key, JSON.stringify(data));
+    }
+
+    // ── GAMIFICATION ──
+    gainXP(amount) {
+        this.xp += amount;
+        localStorage.setItem('edusync_xp', this.xp);
+        this.updateXPDisplay();
+        this.checkBadges();
+    }
+
+    getLevel() {
+        return Math.floor(this.xp / 100) + 1;
+    }
+
+    updateXPDisplay() {
+        const level = this.getLevel();
+        const xpInLevel = this.xp % 100;
+        const xpEl = document.getElementById('userXP');
+        const levelEl = document.getElementById('xpLevel');
+        const xpTextEl = document.getElementById('xpText');
+        const fillEl = document.getElementById('xpFill');
+        if (xpEl) xpEl.textContent = this.xp;
+        if (levelEl) levelEl.textContent = `Lv. ${level}`;
+        if (xpTextEl) xpTextEl.textContent = `${xpInLevel} / 100 XP`;
+        if (fillEl) fillEl.style.width = xpInLevel + '%';
+        this.renderBadges();
+    }
+
+    checkBadges() {
+        const newBadges = [];
+        if (this.xp >= 100 && !this.badges.includes('first100')) {
+            newBadges.push({ id: 'first100', icon: '🌟', label: 'Rising Star' });
+            this.badges.push('first100');
+        }
+        if (this.tasks.filter(t => t.status === 'completed').length >= 5 && !this.badges.includes('tasks5')) {
+            newBadges.push({ id: 'tasks5', icon: '✅', label: 'Task Crusher' });
+            this.badges.push('tasks5');
+        }
+        if (this.quizStats.totalQuizzes >= 3 && !this.badges.includes('quiz3')) {
+            newBadges.push({ id: 'quiz3', icon: '🧠', label: 'Quiz Whiz' });
+            this.badges.push('quiz3');
+        }
+        if (this.focusSessionsCompleted >= 5 && !this.badges.includes('focus5')) {
+            newBadges.push({ id: 'focus5', icon: '🎯', label: 'Focus Master' });
+            this.badges.push('focus5');
+        }
+        newBadges.forEach(b => this.showToast(`🏅 Badge unlocked: ${b.label}!`, 'success'));
+    }
+
+    renderBadges() {
+        const badgeMap = {
+            first100: '🌟', tasks5: '✅', quiz3: '🧠', focus5: '🎯',
+            writer: '📝', trader: '🛒', networker: '👥'
+        };
+        const row = document.getElementById('badgesRow');
+        if (!row) return;
+        if (this.badges.length === 0) {
+            row.innerHTML = '<span class="no-badges">Complete tasks to earn badges!</span>';
+            return;
+        }
+        row.innerHTML = this.badges.map(b => `<span class="badge-icon" title="${b}">${badgeMap[b] || '🏅'}</span>`).join('');
+    }
+
+    // ── TOAST ──
+    showToast(message, type = 'info') {
+        let container = document.getElementById('toastContainer');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toastContainer';
+            container.className = 'toast-container';
+            document.body.appendChild(container);
+        }
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(() => toast.classList.add('show'), 10);
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
+    // ══ WRITING TOOL ══
+    newDocument() {
+        const doc = {
+            id: this.generateId(),
+            title: 'Untitled Document',
+            type: 'essay',
+            content: '',
+            outline: [],
+            citations: [],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+        this.documents.push(doc);
+        this.saveModuleData('edusync_documents', this.documents);
+        this.loadDocument(doc.id);
+        this.renderDocsList();
+        this.gainXP(5);
+    }
+
+    loadDocument(docId) {
+        const doc = this.documents.find(d => d.id === docId);
+        if (!doc) return;
+        this.currentDocId = docId;
+        this.outlineSections = doc.outline ? [...doc.outline] : [];
+        this.citations = doc.citations ? [...doc.citations] : [];
+        document.getElementById('docTitle').value = doc.title;
+        document.getElementById('docType').value = doc.type;
+        document.getElementById('writingArea').innerHTML = doc.content;
+        this.renderOutline();
+        this.renderCitations();
+        this.updateWordCount();
+        // Highlight active
+        document.querySelectorAll('.doc-item').forEach(el => {
+            el.classList.toggle('active', el.dataset.docId === docId);
+        });
+    }
+
+    saveDocument() {
+        if (!this.currentDocId) { this.newDocument(); return; }
+        const doc = this.documents.find(d => d.id === this.currentDocId);
+        if (!doc) return;
+        doc.title = document.getElementById('docTitle').value || 'Untitled';
+        doc.type = document.getElementById('docType').value;
+        doc.content = document.getElementById('writingArea').innerHTML;
+        doc.outline = [...this.outlineSections];
+        doc.citations = [...this.citations];
+        doc.updatedAt = new Date().toISOString();
+        this.saveModuleData('edusync_documents', this.documents);
+        this.renderDocsList();
+        this.showToast('✅ Document saved!', 'success');
+        this.gainXP(2);
+    }
+
+    renderDocsList() {
+        const el = document.getElementById('docsList');
+        if (!el) return;
+        if (this.documents.length === 0) {
+            el.innerHTML = '<p class="empty-list-msg">No documents yet. Click "New Doc" to start.</p>';
+            return;
+        }
+        el.innerHTML = this.documents.map(doc => `
+            <div class="doc-item ${doc.id === this.currentDocId ? 'active' : ''}" data-doc-id="${doc.id}">
+                <div class="doc-item-info">
+                    <span class="doc-item-title">${this.escapeHtml(doc.title)}</span>
+                    <span class="doc-item-meta">${doc.type} · ${new Date(doc.updatedAt).toLocaleDateString()}</span>
+                </div>
+                <button class="btn-icon-sm" onclick="studyHub.deleteDocument('${doc.id}'); event.stopPropagation();" title="Delete"><i class="fas fa-trash"></i></button>
+            </div>
+        `).join('');
+        el.querySelectorAll('.doc-item').forEach(item => {
+            item.addEventListener('click', () => this.loadDocument(item.dataset.docId));
+        });
+    }
+
+    async deleteDocument(docId) {
+        const ok = await this.customConfirm({ title: 'Delete Document', message: 'Delete this document? This cannot be undone.', okLabel: 'Delete', okClass: 'btn-danger' });
+        if (!ok) return;
+        this.documents = this.documents.filter(d => d.id !== docId);
+        if (this.currentDocId === docId) {
+            this.currentDocId = null;
+            document.getElementById('docTitle').value = '';
+            document.getElementById('writingArea').innerHTML = '';
+            this.outlineSections = [];
+            this.citations = [];
+            this.renderOutline();
+            this.renderCitations();
+        }
+        this.saveModuleData('edusync_documents', this.documents);
+        this.renderDocsList();
+    }
+
+    async addOutlineSection() {
+        const title = await this.customPrompt({ title: 'Add Section', label: 'Section title', placeholder: 'e.g. Introduction' });
+        if (!title) return;
+        this.outlineSections.push({ id: this.generateId(), title, notes: '' });
+        this.renderOutline();
+    }
+
+    renderOutline() {
+        const el = document.getElementById('outlineContainer');
+        if (!el) return;
+        if (this.outlineSections.length === 0) {
+            el.innerHTML = '<p class="outline-placeholder">Add sections to build your document structure.</p>';
+            return;
+        }
+        el.innerHTML = this.outlineSections.map((s, i) => `
+            <div class="outline-item" draggable="true">
+                <span class="outline-num">${i + 1}.</span>
+                <span class="outline-title">${this.escapeHtml(s.title)}</span>
+                <button class="btn-icon-sm" onclick="studyHub.removeOutlineSection('${s.id}')"><i class="fas fa-times"></i></button>
+            </div>
+        `).join('');
+    }
+
+    removeOutlineSection(id) {
+        this.outlineSections = this.outlineSections.filter(s => s.id !== id);
+        this.renderOutline();
+    }
+
+    updateWordCount() {
+        const text = document.getElementById('writingArea')?.innerText || '';
+        const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+        const el = document.getElementById('wordCount');
+        if (el) el.textContent = words;
+    }
+
+    saveCitation() {
+        const title = document.getElementById('citationTitle')?.value.trim();
+        if (!title) { this.showToast('Citation title is required', 'error'); return; }
+        const citation = {
+            id: this.generateId(),
+            author: document.getElementById('citationAuthor')?.value.trim(),
+            title,
+            year: document.getElementById('citationYear')?.value,
+            format: document.getElementById('citationFormat')?.value,
+            publisher: document.getElementById('citationPublisher')?.value.trim()
+        };
+        this.citations.push(citation);
+        this.renderCitations();
+        document.getElementById('addCitationModal').classList.remove('active');
+        // Clear inputs
+        ['citationAuthor','citationTitle','citationYear','citationPublisher'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+    }
+
+    renderCitations() {
+        const el = document.getElementById('citationList');
+        if (!el) return;
+        if (this.citations.length === 0) {
+            el.innerHTML = '<p class="empty-list-msg">No citations yet.</p>';
+            return;
+        }
+        el.innerHTML = this.citations.map(c => {
+            let formatted = '';
+            if (c.format === 'apa') {
+                formatted = `${c.author || 'Unknown'} (${c.year || 'n.d.'}). <em>${c.title}</em>. ${c.publisher || ''}`;
+            } else if (c.format === 'mla') {
+                formatted = `${c.author || 'Unknown'}. "${c.title}." ${c.publisher || ''}, ${c.year || 'n.d.'}.`;
+            } else {
+                formatted = `${c.author || 'Unknown'}, "${c.title}," ${c.publisher || ''} (${c.year || 'n.d.'}).`;
+            }
+            return `<div class="citation-item">
+                <span class="citation-format-tag">${c.format.toUpperCase()}</span>
+                <span class="citation-text">${formatted}</span>
+                <button class="btn-icon-sm" onclick="studyHub.removeCitation('${c.id}')"><i class="fas fa-times"></i></button>
+            </div>`;
+        }).join('');
+    }
+
+    removeCitation(id) {
+        this.citations = this.citations.filter(c => c.id !== id);
+        this.renderCitations();
+    }
+
+    // ══ FOCUS MODE ══
+    startFocusTimer() {
+        if (this.focusRunning) return;
+        this.focusRunning = true;
+        document.getElementById('startFocusBtn').disabled = true;
+        document.getElementById('pauseFocusBtn').disabled = false;
+        this.focusTimer = setInterval(() => this.tickFocusTimer(), 1000);
+    }
+
+    pauseFocusTimer() {
+        this.focusRunning = false;
+        clearInterval(this.focusTimer);
+        this.focusTimer = null;
+        document.getElementById('startFocusBtn').disabled = false;
+        document.getElementById('pauseFocusBtn').disabled = true;
+    }
+
+    resetFocusTimer() {
+        this.pauseFocusTimer();
+        this.focusPhase = 'work';
+        this.focusSecondsLeft = this.focusWorkMinutes * 60;
+        this.updateFocusDisplay();
+    }
+
+    tickFocusTimer() {
+        this.focusSecondsLeft--;
+        this.updateFocusDisplay();
+        if (this.focusSecondsLeft <= 0) {
+            if (this.focusPhase === 'work') {
+                this.focusPhase = 'break';
+                this.focusSecondsLeft = this.focusBreakMinutes * 60;
+                this.focusSessionsCompleted++;
+                this.focusTotalMinutes += this.focusWorkMinutes;
+                localStorage.setItem('edusync_focus_sessions', this.focusSessionsCompleted);
+                document.getElementById('sessionsCompleted').textContent = this.focusSessionsCompleted;
+                document.getElementById('totalFocusTime').textContent = this.focusTotalMinutes;
+                document.getElementById('totalSessions').textContent = this.focusSessionsCompleted;
+                this.gainXP(10);
+                this.showToast('🎉 Focus session complete! Take a break.', 'success');
+            } else {
+                this.focusPhase = 'work';
+                this.focusSecondsLeft = this.focusWorkMinutes * 60;
+                this.showToast('⚡ Break over. Time to focus!', 'info');
+            }
+        }
+    }
+
+    updateFocusDisplay() {
+        const mins = Math.floor(this.focusSecondsLeft / 60);
+        const secs = this.focusSecondsLeft % 60;
+        const timeStr = `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+        const phaseLabel = this.focusPhase === 'work' ? 'Focus' : 'Break';
+        const totalSecs = (this.focusPhase === 'work' ? this.focusWorkMinutes : this.focusBreakMinutes) * 60;
+        const progress = 1 - this.focusSecondsLeft / totalSecs;
+
+        document.getElementById('focusTimerDisplay').textContent = timeStr;
+        document.getElementById('focusPhaseLabel').textContent = phaseLabel;
+        document.getElementById('focusOverlayTimer').textContent = timeStr;
+        document.getElementById('focusOverlayPhase').textContent = phaseLabel + ' Session';
+
+        // SVG ring animation
+        const ring = document.getElementById('timerRing');
+        if (ring) {
+            const circumference = 2 * Math.PI * 45;
+            ring.style.strokeDasharray = circumference;
+            ring.style.strokeDashoffset = circumference * (1 - progress);
+        }
+    }
+
+    addBlockerSite() {
+        const input = document.getElementById('blockerSiteInput');
+        const site = input?.value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+        if (!site) return;
+        if (!this.blockedSites.includes(site)) {
+            this.blockedSites.push(site);
+            localStorage.setItem('edusync_blocker', JSON.stringify(this.blockedSites));
+        }
+        input.value = '';
+        this.renderBlockerList();
+    }
+
+    renderBlockerList() {
+        const el = document.getElementById('blockerList');
+        if (!el) return;
+        if (this.blockedSites.length === 0) {
+            el.innerHTML = '<p class="empty-list-msg">No sites added.</p>';
+            return;
+        }
+        el.innerHTML = this.blockedSites.map(site => `
+            <div class="blocker-item">
+                <i class="fas fa-ban"></i>
+                <span>${site}</span>
+                <button class="btn-icon-sm" onclick="studyHub.removeBlockerSite('${site}')"><i class="fas fa-times"></i></button>
+            </div>
+        `).join('');
+    }
+
+    removeBlockerSite(site) {
+        this.blockedSites = this.blockedSites.filter(s => s !== site);
+        localStorage.setItem('edusync_blocker', JSON.stringify(this.blockedSites));
+        this.renderBlockerList();
+    }
+
+    // ══ AMBIENT AUDIO ══
+    playAmbientAudio(sound) {
+        const url = this.ambientUrls[sound];
+        if (!url || url.startsWith('YOUR_FIREBASE')) {
+            this.showToast('⚠️ Audio URL not set yet. Add your Firebase Storage URL in script.js.', 'error');
+            document.querySelectorAll('.ambient-btn').forEach(b => b.classList.remove('active'));
+            return;
+        }
+        try {
+            this.ambientAudio = new Audio(url);
+            this.ambientAudio.loop = true;
+            this.ambientAudio.volume = this.ambientVolume;
+            this.ambientAudio.play().catch(() => {
+                this.showToast('Could not play audio. Check the URL or browser permissions.', 'error');
+                document.querySelectorAll('.ambient-btn').forEach(b => b.classList.remove('active'));
+            });
+            const labels = { rain: 'Rain', cafe: 'Café', forest: 'Forest', white: 'White Noise' };
+            this.showToast(`🎵 Now playing: ${labels[sound] || sound}`, 'info');
+        } catch (e) {
+            this.showToast('Audio playback error.', 'error');
+        }
+    }
+
+    stopAmbientAudio() {
+        if (this.ambientAudio) {
+            this.ambientAudio.pause();
+            this.ambientAudio.currentTime = 0;
+            this.ambientAudio = null;
+        }
+    }
+    createGroup() {
+        const name = document.getElementById('groupNameInput')?.value.trim();
+        if (!name) { this.showToast('Group name is required', 'error'); return; }
+        const group = {
+            id: this.generateId(),
+            name,
+            subject: document.getElementById('groupSubjectInput')?.value.trim(),
+            description: document.getElementById('groupDescInput')?.value.trim(),
+            members: ['You'],
+            tasks: [],
+            notes: [],
+            chat: [],
+            createdAt: new Date().toISOString()
+        };
+        this.groups.push(group);
+        this.saveModuleData('edusync_groups', this.groups);
+        document.getElementById('createGroupModal').classList.remove('active');
+        ['groupNameInput','groupSubjectInput','groupDescInput'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+        this.renderGroupsList();
+        this.openGroup(group.id);
+        this.gainXP(10);
+        this.showToast(`👥 Group "${name}" created!`, 'success');
+    }
+
+    renderGroupsList() {
+        const el = document.getElementById('groupsList');
+        if (!el) return;
+        if (this.groups.length === 0) {
+            el.innerHTML = '<p class="empty-list-msg">No groups yet.</p>';
+            return;
+        }
+        el.innerHTML = this.groups.map(g => `
+            <div class="group-list-item ${g.id === this.activeGroupId ? 'active' : ''}" onclick="studyHub.openGroup('${g.id}')">
+                <div class="group-list-icon"><i class="fas fa-users"></i></div>
+                <div>
+                    <div class="group-list-name">${this.escapeHtml(g.name)}</div>
+                    <div class="group-list-meta">${g.subject || 'General'} · ${g.members.length} member(s)</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    openGroup(groupId) {
+        this.activeGroupId = groupId;
+        const group = this.groups.find(g => g.id === groupId);
+        if (!group) return;
+        document.getElementById('collabEmptyState').style.display = 'none';
+        document.getElementById('activeGroupPanel').style.display = '';
+        document.getElementById('activeGroupName').textContent = group.name;
+        document.getElementById('activeGroupMembers').textContent = `${group.members.length} member(s) · ${group.subject || 'General'}`;
+        this.renderGroupTasks(group);
+        this.renderGroupNotes(group);
+        this.renderGroupChat(group);
+        this.renderGroupsList();
+    }
+
+    renderGroupTasks(group) {
+        const el = document.getElementById('groupTasksList');
+        if (!el) return;
+        if (!group.tasks.length) { el.innerHTML = '<p class="empty-list-msg">No shared tasks yet.</p>'; return; }
+        el.innerHTML = group.tasks.map(t => `
+            <div class="group-task-item ${t.done ? 'done' : ''}">
+                <label class="group-task-check">
+                    <input type="checkbox" ${t.done ? 'checked' : ''} onchange="studyHub.toggleGroupTask('${group.id}','${t.id}')">
+                    <span>${this.escapeHtml(t.title)}</span>
+                </label>
+                <span class="task-badge priority-${t.priority}">${t.priority}</span>
+                <button class="btn-icon-sm" onclick="studyHub.removeGroupTask('${group.id}','${t.id}')"><i class="fas fa-times"></i></button>
+            </div>
+        `).join('');
+    }
+
+    async addGroupTask() {
+        const group = this.groups.find(g => g.id === this.activeGroupId);
+        if (!group) return;
+        const title = await this.customPrompt({ title: 'Add Shared Task', label: 'Task title', placeholder: 'e.g. Review Chapter 3' });
+        if (!title) return;
+        group.tasks.push({ id: this.generateId(), title, priority: 'medium', done: false });
+        this.saveModuleData('edusync_groups', this.groups);
+        this.renderGroupTasks(group);
+    }
+
+    toggleGroupTask(groupId, taskId) {
+        const group = this.groups.find(g => g.id === groupId);
+        if (!group) return;
+        const task = group.tasks.find(t => t.id === taskId);
+        if (task) { task.done = !task.done; this.saveModuleData('edusync_groups', this.groups); }
+    }
+
+    removeGroupTask(groupId, taskId) {
+        const group = this.groups.find(g => g.id === groupId);
+        if (!group) return;
+        group.tasks = group.tasks.filter(t => t.id !== taskId);
+        this.saveModuleData('edusync_groups', this.groups);
+        this.renderGroupTasks(group);
+    }
+
+    renderGroupNotes(group) {
+        const el = document.getElementById('groupNotesList');
+        if (!el) return;
+        if (!group.notes.length) { el.innerHTML = '<p class="empty-list-msg">No shared notes yet.</p>'; return; }
+        el.innerHTML = group.notes.map(n => `
+            <div class="group-note-item">
+                <div class="group-note-text">${this.escapeHtml(n.text)}</div>
+                <div class="group-note-meta">${n.author} · ${new Date(n.createdAt).toLocaleString()}</div>
+                <button class="btn-icon-sm" onclick="studyHub.removeGroupNote('${group.id}','${n.id}')"><i class="fas fa-times"></i></button>
+            </div>
+        `).join('');
+    }
+
+    async addGroupNote() {
+        const group = this.groups.find(g => g.id === this.activeGroupId);
+        if (!group) return;
+        const text = await this.customPrompt({ title: 'Add Shared Note', label: 'Note content', placeholder: 'Write your note...' });
+        if (!text) return;
+        group.notes.push({ id: this.generateId(), text, author: 'You', createdAt: new Date().toISOString() });
+        this.saveModuleData('edusync_groups', this.groups);
+        this.renderGroupNotes(group);
+    }
+
+    removeGroupNote(groupId, noteId) {
+        const group = this.groups.find(g => g.id === groupId);
+        if (!group) return;
+        group.notes = group.notes.filter(n => n.id !== noteId);
+        this.saveModuleData('edusync_groups', this.groups);
+        this.renderGroupNotes(group);
+    }
+
+    renderGroupChat(group) {
+        const el = document.getElementById('groupChat');
+        if (!el) return;
+        if (!group.chat.length) { el.innerHTML = '<p class="empty-list-msg chat-empty">No messages yet. Say hi! 👋</p>'; return; }
+        el.innerHTML = group.chat.map(m => `
+            <div class="chat-message ${m.author === 'You' ? 'mine' : 'theirs'}">
+                <div class="chat-bubble">${this.escapeHtml(m.text)}</div>
+                <div class="chat-meta">${m.author} · ${new Date(m.time).toLocaleTimeString()}</div>
+            </div>
+        `).join('');
+        el.scrollTop = el.scrollHeight;
+    }
+
+    sendChatMessage() {
+        const group = this.groups.find(g => g.id === this.activeGroupId);
+        if (!group) return;
+        const input = document.getElementById('chatInput');
+        const text = input?.value.trim();
+        if (!text) return;
+        group.chat.push({ id: this.generateId(), text, author: 'You', time: new Date().toISOString() });
+        this.saveModuleData('edusync_groups', this.groups);
+        input.value = '';
+        this.renderGroupChat(group);
+    }
+
+    async leaveGroup() {
+        const ok = await this.customConfirm({ title: 'Leave Group', message: 'Are you sure you want to leave this group?', okLabel: 'Leave', okClass: 'btn-danger' });
+        if (!ok) return;
+        this.groups = this.groups.filter(g => g.id !== this.activeGroupId);
+        this.activeGroupId = null;
+        document.getElementById('collabEmptyState').style.display = '';
+        document.getElementById('activeGroupPanel').style.display = 'none';
+        this.saveModuleData('edusync_groups', this.groups);
+        this.renderGroupsList();
+    }
+
+    // ══ MARKETPLACE ══
+    async seedMarketItems() {
+        this.marketItems = [
+            { id: this.generateId(), title: 'Calculus Notes – Complete Semester', category: 'notes', description: 'Detailed handwritten + typed notes for MATH101, chapters 1–12.', price: 150, condition: 'new', seller: 'Ana R.', likes: 24, createdAt: new Date(Date.now() - 86400000 * 5).toISOString() },
+            { id: this.generateId(), title: 'Physics Textbook (Serway 10th Ed.)', category: 'textbook', description: 'Gently used. Minor highlighting on some pages.', price: 450, condition: 'good', seller: 'Carlo M.', likes: 8, createdAt: new Date(Date.now() - 86400000 * 3).toISOString() },
+            { id: this.generateId(), title: 'Biology Flashcards – Cell Division', category: 'flashcards', description: '120 cards covering mitosis, meiosis, and cell cycle. Digital PDF.', price: 80, condition: 'new', seller: 'Bea T.', likes: 15, createdAt: new Date(Date.now() - 86400000).toISOString() },
+            { id: this.generateId(), title: 'CS101 Past Exam Papers (2020–2024)', category: 'past-papers', description: 'Four years of actual exam papers with answer keys.', price: 0, condition: 'new', seller: 'Diego L.', likes: 55, createdAt: new Date(Date.now() - 86400000 * 2).toISOString() },
+            { id: this.generateId(), title: 'English Literature Essay Pack', category: 'notes', description: 'Six graded essays with professor feedback. A-range work.', price: 120, condition: 'new', seller: 'Mia S.', likes: 19, createdAt: new Date().toISOString() },
+        ];
+        for (const item of this.marketItems) {
+            await this.saveMarketItem(item);
+        }
+    }
+
+    async listMarketItem() {
+        const title = document.getElementById('sellTitle')?.value.trim();
+        if (!title) { this.showToast('Item title is required', 'error'); return; }
+        const item = {
+            id: this.generateId(),
+            title,
+            category: document.getElementById('sellCategory')?.value,
+            description: document.getElementById('sellDescription')?.value.trim(),
+            price: parseFloat(document.getElementById('sellPrice')?.value) || 0,
+            condition: document.getElementById('sellCondition')?.value,
+            seller: 'You',
+            likes: 0,
+            createdAt: new Date().toISOString()
+        };
+        try {
+            await this.saveMarketItem(item);
+            this.marketItems.unshift(item);
+        } catch (e) {
+            this.showToast('Failed to save item. Please try again.', 'error');
+            return;
+        }
+        document.getElementById('sellItemModal').classList.remove('active');
+        ['sellTitle','sellDescription','sellPrice'].forEach(id => {
+            const el = document.getElementById(id); if (el) el.value = '';
+        });
+        this.renderMarket();
+        this.gainXP(15);
+        this.showToast('🛒 Item listed successfully!', 'success');
+    }
+
+    renderMarket() {
+        const el = document.getElementById('marketGrid');
+        if (!el) return;
+        const search = document.getElementById('marketSearch')?.value.toLowerCase() || '';
+        const cat = document.getElementById('marketCategoryFilter')?.value || '';
+        const sort = document.getElementById('marketSortFilter')?.value || 'newest';
+
+        let items = this.marketItems.filter(item => {
+            const matchSearch = !search || item.title.toLowerCase().includes(search) || item.description?.toLowerCase().includes(search);
+            const matchCat = !cat || item.category === cat;
+            return matchSearch && matchCat;
+        });
+
+        items = [...items].sort((a, b) => {
+            if (sort === 'price-asc') return a.price - b.price;
+            if (sort === 'price-desc') return b.price - a.price;
+            if (sort === 'popular') return b.likes - a.likes;
+            return new Date(b.createdAt) - new Date(a.createdAt);
+        });
+
+        if (items.length === 0) {
+            el.innerHTML = '<div class="market-empty"><i class="fas fa-store"></i><p>No items found.</p></div>';
+            return;
+        }
+
+        const catIcons = { notes: 'fa-sticky-note', textbook: 'fa-book', flashcards: 'fa-layer-group', 'past-papers': 'fa-file-alt', other: 'fa-box' };
+        el.innerHTML = items.map(item => `
+            <div class="market-card">
+                <div class="market-card-header">
+                    <div class="market-cat-icon"><i class="fas ${catIcons[item.category] || 'fa-box'}"></i></div>
+                    <span class="market-cat-badge">${item.category}</span>
+                    ${item.condition === 'new' ? '<span class="market-new-badge">New</span>' : ''}
+                </div>
+                <div class="market-card-body">
+                    <h4>${this.escapeHtml(item.title)}</h4>
+                    <p>${this.escapeHtml(item.description || '')}</p>
+                </div>
+                <div class="market-card-footer">
+                    <div class="market-price">${item.price === 0 ? '<span class="free-label">FREE</span>' : '₱' + item.price.toFixed(0)}</div>
+                    <div class="market-meta">
+                        <span><i class="fas fa-heart"></i> ${item.likes}</span>
+                        <span><i class="fas fa-user"></i> ${item.seller}</span>
+                    </div>
+                    <button class="btn btn-sm btn-primary" onclick="studyHub.contactSeller('${item.id}')">
+                        ${item.price === 0 ? '<i class="fas fa-download"></i> Get Free' : '<i class="fas fa-envelope"></i> Contact'}
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async contactSeller(itemId) {
+        const item = this.marketItems.find(i => i.id === itemId);
+        if (!item) return;
+        if (item.price === 0) {
+            item.likes = (item.likes || 0) + 1;
+            try { await this.saveMarketItem(item); } catch(e) {}
+            this.renderMarket();
+            this.showToast(`📥 "${item.title}" — downloading free material!`, 'success');
+            this.gainXP(2);
+        } else {
+            this.showToast(`📧 Message sent to ${item.seller}!`, 'info');
+        }
+    }
+
+    // ══ FORUM ══
+    seedForumPosts() {
+        this.forumPosts = [
+            { id: this.generateId(), title: 'Best resources for learning Calculus?', category: 'math', content: 'Looking for recommendations on textbooks, YouTube channels, or websites that helped you understand calculus. Struggling with integration by parts.', author: 'Maria L.', tags: ['calculus','resources'], likes: 12, replies: [], createdAt: new Date(Date.now() - 86400000 * 2).toISOString() },
+            { id: this.generateId(), title: 'How to cite sources in APA 7th edition', category: 'english', content: 'I keep getting confused about the new APA 7th format differences vs 6th. Anyone have a quick summary or cheat sheet they can share?', author: 'James K.', tags: ['apa','citations'], likes: 8, replies: [], createdAt: new Date(Date.now() - 86400000).toISOString() },
+            { id: this.generateId(), title: 'Study group for upcoming CS midterms', category: 'tech', content: 'Anyone in CS201 want to form a study group this weekend? I have notes for all topics and we can quiz each other. Reply or connect below.', author: 'Sam V.', tags: ['study-group','cs'], likes: 21, replies: [], createdAt: new Date().toISOString() },
+        ];
+        this.saveModuleData('edusync_forum', this.forumPosts);
+    }
+
+    publishPost() {
+        const title = document.getElementById('postTitle')?.value.trim();
+        const content = document.getElementById('postContent')?.value.trim();
+        if (!title || !content) { this.showToast('Title and content are required', 'error'); return; }
+        const post = {
+            id: this.generateId(),
+            title,
+            content,
+            category: document.getElementById('postCategory')?.value,
+            tags: document.getElementById('postTags')?.value.split(',').map(t => t.trim()).filter(Boolean),
+            author: 'You',
+            likes: 0,
+            replies: [],
+            createdAt: new Date().toISOString()
+        };
+        this.forumPosts.unshift(post);
+        this.saveModuleData('edusync_forum', this.forumPosts);
+        document.getElementById('newPostModal').classList.remove('active');
+        ['postTitle','postContent','postTags'].forEach(id => {
+            const el = document.getElementById(id); if (el) el.value = '';
+        });
+        this.renderForum();
+        this.gainXP(10);
+        this.showToast('📢 Post published!', 'success');
+    }
+
+    renderForum() {
+        const el = document.getElementById('forumFeed');
+        if (!el) return;
+        const search = document.getElementById('forumSearch')?.value.toLowerCase() || '';
+        let posts = this.forumPosts.filter(p => {
+            const matchCat = this.forumActiveCategory === 'all' || p.category === this.forumActiveCategory;
+            const matchSearch = !search || p.title.toLowerCase().includes(search) || p.content.toLowerCase().includes(search);
+            return matchCat && matchSearch;
+        });
+
+        if (posts.length === 0) {
+            el.innerHTML = '<div class="forum-empty"><i class="fas fa-comments"></i><p>No posts yet. Be the first to share!</p></div>';
+            return;
+        }
+
+        const catColors = { math: '#6366f1', science: '#10b981', english: '#f59e0b', history: '#ef4444', tech: '#3b82f6', general: '#8b5cf6' };
+        el.innerHTML = posts.map(p => `
+            <div class="forum-post-card">
+                <div class="forum-post-header">
+                    <div>
+                        <span class="forum-cat-dot" style="background:${catColors[p.category] || '#888'}"></span>
+                        <span class="forum-cat-label">${p.category}</span>
+                        <span class="forum-post-time">${this.timeAgo(p.createdAt)}</span>
+                    </div>
+                    <div class="forum-post-author"><i class="fas fa-user-circle"></i> ${p.author}</div>
+                </div>
+                <h4 class="forum-post-title">${this.escapeHtml(p.title)}</h4>
+                <p class="forum-post-preview">${this.escapeHtml(p.content.substring(0, 160))}${p.content.length > 160 ? '...' : ''}</p>
+                <div class="forum-post-tags">
+                    ${p.tags.map(t => `<span class="forum-tag">#${t}</span>`).join('')}
+                </div>
+                <div class="forum-post-footer">
+                    <button class="forum-like-btn" onclick="studyHub.likePost('${p.id}')">
+                        <i class="fas fa-heart"></i> ${p.likes}
+                    </button>
+                    <button class="forum-reply-btn" onclick="studyHub.replyPost('${p.id}')">
+                        <i class="fas fa-reply"></i> ${p.replies.length} Replies
+                    </button>
+                </div>
+                ${p.replies.length > 0 ? `<div class="forum-replies">${p.replies.slice(-2).map(r => `
+                    <div class="forum-reply"><strong>${r.author}:</strong> ${this.escapeHtml(r.text)}</div>
+                `).join('')}</div>` : ''}
+            </div>
+        `).join('');
+    }
+
+    likePost(postId) {
+        const post = this.forumPosts.find(p => p.id === postId);
+        if (post) {
+            post.likes++;
+            this.saveModuleData('edusync_forum', this.forumPosts);
+            this.renderForum();
+            this.gainXP(1);
+        }
+    }
+
+    async replyPost(postId) {
+        const post = this.forumPosts.find(p => p.id === postId);
+        if (!post) return;
+        const text = await this.customPrompt({ title: 'Reply to Post', label: 'Your reply', placeholder: 'Share your thoughts...' });
+        if (!text) return;
+        post.replies.push({ id: this.generateId(), text, author: 'You', createdAt: new Date().toISOString() });
+        this.saveModuleData('edusync_forum', this.forumPosts);
+        this.renderForum();
+        this.gainXP(3);
+    }
+
+    timeAgo(dateString) {
+        const seconds = Math.floor((new Date() - new Date(dateString)) / 1000);
+        if (seconds < 60) return 'just now';
+        if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+        if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+        return Math.floor(seconds / 86400) + 'd ago';
     }
 }
 
